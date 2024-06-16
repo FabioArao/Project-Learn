@@ -1,15 +1,25 @@
-from fastapi import APIRouter
+import traceback
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from app.crewai_config import create_learning_task
+from app.scrape import scrape_books_from_page
 
 router = APIRouter()
 
-class LearningRequest(BaseModel):
-    input: str
+class BookRequest(BaseModel):
+    subject: str
+    url: str
 
-@router.post("/api/learning-request")
-async def create_learning_request(request: LearningRequest):
-    # Create and assign the learning task using CrewAI agents
-    result = create_learning_task(request.input)
-    # Customize the response based on the crew's output or status
-    return {"message": "Learning request received and processed", "result": result}
+@router.post("/api/books")
+async def get_books(request: BookRequest):
+    try:
+        # Scrape book information from the provided URL
+        top_books = scrape_books_from_page(request.url)
+        
+        if top_books.empty:
+            raise HTTPException(status_code=404, detail="No books found.")
+        
+        # Return the top 50 books
+        return {"books": top_books.to_dict(orient='records')}
+    except Exception as e:
+        print(f"An error occurred: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
